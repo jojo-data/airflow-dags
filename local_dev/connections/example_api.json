@@ -1,0 +1,9 @@
+{
+    "conn-id": "example_api_connection",
+    "conn-type": "HTTP",
+    "conn-login": "MenData",
+    "conn-password": "password",
+    "conn-extra": {
+        "extra_key": "extra_value"
+    }
+}
