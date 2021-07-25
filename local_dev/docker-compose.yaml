@@ -1,0 +1,104 @@
+version: "3.9"
+
+# template for airflow worker
+x-airflow-worker:
+    &airflow-worker
+    restart: always
+    image: mendata-airflow-celery:2.1.2-python3.8
+    command: worker
+    networks:
+        - airflow_dev
+    volumes: 
+        - ../src/dags:/opt/airflow/dags
+        - ../src/operators:/opt/airflow/plugins/operators
+        - ../src/hooks:/opt/airflow/plugins/hooks
+        - ../src/utils:/opt/airflow/plugins/utils
+    depends_on: 
+        - webserver
+
+services:
+    redis:
+        restart: always
+        container_name: airflow_redis
+        # You can get a full list of redis image from https://hub.docker.com/_/redis
+        image: redis:6.2.5-alpine
+        ports:
+            - "6379:6379"
+        networks:
+            airflow_dev:
+                ipv4_address: 172.18.0.3
+
+    postgres:
+        restart: always
+        container_name: airflow_postgres
+        # You can get a full list of postgres image from https://hub.docker.com/_/postgres
+        image: postgres:13.3-alpine
+        ports:
+            - "5432:5432"
+        networks: 
+            airflow_dev:
+                ipv4_address: 172.18.0.2
+        # Place the postgres db init script in docker container
+        volumes:
+            - ./docker-dependencies/postgres-script/init.sql:/docker-entrypoint-initdb.d/init.sql
+        environment: 
+            # set username and password for postgres
+            - POSTGRES_USER=postgres
+            - POSTGRES_PASSWORD=airflow
+
+    webserver:
+        restart: always
+        container_name: airflow_webserver
+        image: mendata-airflow-celery:2.1.2-python3.8
+        command: webserver
+        networks:
+            - airflow_dev
+        ports:
+            - "8080:8080"
+        volumes: 
+            - ../src/dags:/opt/airflow/dags
+            - ../src/operators:/opt/airflow/plugins/operators
+            - ../src/hooks:/opt/airflow/plugins/hooks
+            - ../src/utils:/opt/airflow/plugins/utils
+        depends_on: 
+            - redis
+            - postgres
+
+    scheduler:
+        restart: always
+        container_name: airflow_scheduler
+        image: mendata-airflow-celery:2.1.2-python3.8
+        command: scheduler
+        networks:
+            - airflow_dev
+        depends_on: 
+            - webserver
+
+    flower:
+        restart: always
+        container_name: airflow_flower
+        image: mendata-airflow-celery:2.1.2-python3.8
+        command: flower
+        networks:
+            - airflow_dev
+        ports:
+            - "5555:5555"
+        depends_on: 
+            - webserver
+
+    # you can add as many workers as you like with the worker template
+    worker_1:
+        <<: *airflow-worker
+        container_name: airflow_worker_1
+
+    # worker_2:
+    #     <<: *airflow-worker
+    #     container_name: airflow_worker_2
+
+networks: 
+    airflow_dev:
+        name: airflow_dev
+        driver: bridge
+        ipam: 
+            config:
+                - subnet: 172.18.0.0/16
